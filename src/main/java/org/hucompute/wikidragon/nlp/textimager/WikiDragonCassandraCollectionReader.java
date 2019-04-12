@@ -1,12 +1,18 @@
 package org.hucompute.wikidragon.nlp.textimager;
 
 import com.datastax.driver.core.*;
-import de.tudarmstadt.ukp.dkpro.core.api.io.ResourceCollectionReaderBase;
+import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.uima.UimaContext;
 import org.apache.uima.cas.CAS;
+import org.apache.uima.cas.CASException;
 import org.apache.uima.cas.impl.XmiCasDeserializer;
 import org.apache.uima.collection.CollectionException;
+import org.apache.uima.fit.component.CasCollectionReader_ImplBase;
+import org.apache.uima.fit.descriptor.ConfigurationParameter;
+import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.Progress;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -19,48 +25,84 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
 
-public class WikiDragonCassandraCollectionReader extends ResourceCollectionReaderBase implements AutoCloseable, Progress {
-
-    private static Logger logger = LogManager.getLogger(WikiDragonCassandraCollectionReader.class);
+public class WikiDragonCassandraCollectionReader extends CasCollectionReader_ImplBase implements AutoCloseable, Progress {
 
     protected ConsistencyLevel secureConsistencyLevel = ConsistencyLevel.ALL;
     protected ConsistencyLevel defaultWriteConsistencyLevel = ConsistencyLevel.ANY;
     protected ConsistencyLevel defaultReadConsistencyLevel = ConsistencyLevel.ONE;
+	
+    private static Logger logger = LogManager.getLogger(WikiDragonCassandraCollectionReader.class);
 
+
+    public static final String PARAM_KEYSPACE = "keyspace";
+    @ConfigurationParameter(name=PARAM_KEYSPACE, mandatory=true)
     private String keyspace;
+
+    public static final String PARAM_DBNAME = "dbname";
+    @ConfigurationParameter(name=PARAM_DBNAME, mandatory=true)
     private String dbname;
+    
+    public static final String PARAM_USER = "user";
+    @ConfigurationParameter(name=PARAM_USER, mandatory=true)
     private String user;
+    
+    public static final String PARAM_PASSWORD = "password";
+    @ConfigurationParameter(name=PARAM_PASSWORD, mandatory=true)
     private String password;
+
+    public static final String PARAM_CONTACTHOSTS = "contactHosts";
+    @ConfigurationParameter(name=PARAM_CONTACTHOSTS, mandatory=true)
     private String[] contactHosts;
-    private Cluster cluster;
-    private Session session;
+
+
+    public static final String PARAM_PROCESSINGSTATE = "processingState";
+    @ConfigurationParameter(name=PARAM_PROCESSINGSTATE, mandatory=true)
     private TextImagerCassandraDriver.ProcessingState processingState;
+
+    public static final String PARAM_SKIPZEROLENGTH = "skipZeroLength";
+    @ConfigurationParameter(name=PARAM_SKIPZEROLENGTH, mandatory=true)
+    private boolean skipZeroLength;
+    
+    public static final String PARAM_POOLDOCUMENTS = "poolDocuments";
+    @ConfigurationParameter(name=PARAM_POOLDOCUMENTS, mandatory=true)
+    private boolean poolDocuments;
+    
+    public static final String PARAM_POOLDOCUMENTSMAXBYTES = "poolDocumentsMaxBytes";
+    @ConfigurationParameter(name=PARAM_POOLDOCUMENTSMAXBYTES, mandatory=true)
+    private int poolDocumentsMaxBytes;
+
+    public static final String PARAM_LOG_FILE_PATH = "logFilePath";
+    @ConfigurationParameter(name=PARAM_LOG_FILE_PATH, mandatory=true)
+    private String logFilePath;
+    
+    private File logFile;
     private ResultSet resultSet;
     private String[] next = null;
-    private boolean skipZeroLength;
-    private boolean poolDocuments;
-    private int poolDocumentsMaxBytes;
     private int pooledDocumentsRead = 0;
     private int pooledDocumentsRelevant = 0;
     private int documentsRead = 0;
     private int documentsSkippedByLog = 0;
-    private File logFile;
     private DB logDb;
     private Set<String> logSet;
     private String language;
-
-    public WikiDragonCassandraCollectionReader(String pKeyspace, String pUser, String pPassword, String[] pContactHosts, String pDBName, TextImagerCassandraDriver.ProcessingState pProcessingState, boolean pSkipZeroLength, boolean pPoolDocuments, int pPoolDocumentsMaxBytes, File pLogFile) throws IOException, CollectionException {
-        keyspace = pKeyspace;
-        user = pUser;
-        password = pPassword;
-        dbname = pDBName;
-        contactHosts = pContactHosts;
-        processingState = pProcessingState;
-        skipZeroLength = pSkipZeroLength;
-        poolDocuments = pPoolDocuments;
-        poolDocumentsMaxBytes = pPoolDocumentsMaxBytes;
-        logFile = pLogFile;
-        if (logFile != null) {
+    private Cluster cluster;
+    private Session session;
+    
+    @Override
+    public void initialize(UimaContext aContext) throws ResourceInitializationException {
+    	// TODO Auto-generated method stub
+    	super.initialize(aContext);
+    	logFile = new File(logFilePath);
+        try {
+			init();
+		} catch (CollectionException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
+    private void init() throws CollectionException, IOException{
+    	if (logFile != null) {
             logDb = DBMaker.fileDB(logFile).closeOnJvmShutdown().transactionEnable().make();
             logSet = logDb.hashSet("keys", Serializer.STRING).createOrOpen();
         }
@@ -77,6 +119,23 @@ public class WikiDragonCassandraCollectionReader extends ResourceCollectionReade
         pooledDocumentsRelevant = computePooledDocumentsRelevant();
         resultSet = session.execute("select dbname,raw,textlen,xmilen,processed,xmi from wikitextspannlp");
         prefetch();
+    }
+
+    public WikiDragonCassandraCollectionReader(){
+    }
+    
+    public WikiDragonCassandraCollectionReader(String pKeyspace, String pUser, String pPassword, String[] pContactHosts, String pDBName, TextImagerCassandraDriver.ProcessingState pProcessingState, boolean pSkipZeroLength, boolean pPoolDocuments, int pPoolDocumentsMaxBytes, File pLogFile) throws IOException, CollectionException {
+        keyspace = pKeyspace;
+        user = pUser;
+        password = pPassword;
+        dbname = pDBName;
+        contactHosts = pContactHosts;
+        processingState = pProcessingState;
+        skipZeroLength = pSkipZeroLength;
+        poolDocuments = pPoolDocuments;
+        poolDocumentsMaxBytes = pPoolDocumentsMaxBytes;
+        logFile = pLogFile;
+        init();
     }
 
     private int computePooledDocumentsRelevant() throws IOException, CollectionException {
@@ -202,6 +261,7 @@ public class WikiDragonCassandraCollectionReader extends ResourceCollectionReade
     @Override
     public void getNext(CAS cas) throws IOException, CollectionException {
         if (next != null) {
+        	
             Set<String> lDeliveredKeys = new HashSet<>();
             byte[] lBytes = null;
             if (poolDocuments) {
@@ -233,6 +293,15 @@ public class WikiDragonCassandraCollectionReader extends ResourceCollectionReade
             if (cas != null) {
                 try {
                     XmiCasDeserializer.deserialize(new ByteArrayInputStream(lBytes), cas, true);
+                    DocumentMetaData docMetaData;
+        			try {
+        				docMetaData = DocumentMetaData.create(cas);
+        	            docMetaData.setDocumentTitle(""+pooledDocumentsRead);
+        	            docMetaData.setDocumentId(""+pooledDocumentsRead);
+        			} catch (CASException | IllegalStateException e1) {
+        				// TODO Auto-generated catch block
+        				e1.printStackTrace();
+        			}
                 } catch (SAXException e) {
                     throw new IOException("Invalid XMI: " + e.getMessage(), e);
                 }
@@ -249,11 +318,6 @@ public class WikiDragonCassandraCollectionReader extends ResourceCollectionReade
     @Override
     public boolean hasNext() throws IOException, CollectionException {
         return next != null;
-    }
-
-    @Override
-    public String getLanguage() {
-        return language;
     }
 
     @Override

@@ -61,6 +61,7 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
 
     private Cluster cluster;
     private Session session;
+    private PreparedStatement preparedStatement;
 
     public WikiDragonCassandraWriter() {
     }
@@ -85,6 +86,7 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
         cluster = lBuilder.build();
         session = cluster.connect();
         session.execute("use "+keyspace);
+        preparedStatement = session.prepare("UPDATE wikitextspannlp SET xmi=?, xmilen=?, processed=true WHERE dbname=? AND raw=?");
     }
 
     @Override
@@ -108,13 +110,12 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
         XMLSerializer lXMLSerializer = new XMLSerializer(lWriter, false);
         try {
             lXCASSerializer.serialize(jCas.getCas(), lXMLSerializer.getContentHandler());
-            PreparedStatement lPreparedStatement = session.prepare("UPDATE wikitextspannlp SET xmi=?, xmilen=?, processed=true WHERE dbname=? AND raw=?");
             for (FastDocument lDocument : split(FastDocument.fromXMI(lWriter.toString()))) {
                 List<FastAnnotation> lAnnotations = lDocument.getAnnotations(FastDocument.NS_WIKIDRAGON_URI, "WikiTextSpan", false);
                 if (lAnnotations.size() == 1) {
                     String lXMI = lDocument.exportXMI();
                     String lUID = lAnnotations.get(0).getAttributeValue("uid", null);
-                    ResultSet lResultSet = session.execute(lPreparedStatement.bind(lXMI, lXMI.getBytes(Charset.forName("UTF-8")).length, dbname, lUID));
+                    ResultSet lResultSet = session.execute(preparedStatement.bind(lXMI, lXMI.getBytes(Charset.forName("UTF-8")).length, dbname, lUID));
                     if (!lResultSet.wasApplied()) {
                         throw new AnalysisEngineProcessException(new IOException("Update could not be applied"));
                     }

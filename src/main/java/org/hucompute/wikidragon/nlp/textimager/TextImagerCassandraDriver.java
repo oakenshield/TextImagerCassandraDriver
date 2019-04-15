@@ -110,7 +110,7 @@ public class TextImagerCassandraDriver {
         switch (lCommand) {
             case "exportfs": {
                 JCas lJcas = JCasFactory.createJCas("HtmlTagTypeSystemDescriptor");
-                try (WikiDragonCassandraCollectionReader lReader = new WikiDragonCassandraCollectionReader(lKeyspace, lUser, lPassword, new String[]{lHost}, lDBName, lProcessingState, lSkipZero, lPoolDocs, lPoolMaxBytes, lLogFile)) {
+                try (WikiDragonCassandraCollectionReader lReader = new WikiDragonCassandraCollectionReader(lKeyspace, lUser, lPassword, new String[]{lHost}, lDBName, lProcessingState, lSkipZero, lPoolDocs, lPoolMaxBytes)) {
                     int lDocCounter = 1;
                     while (lReader.hasNext()) {
                         lReader.getNext(lJcas.getCas());
@@ -119,7 +119,7 @@ public class TextImagerCassandraDriver {
                         lXmiCasSerializer.serialize(lJcas.getCas(), lOutputStream);
                         lOutputStream.flush();
                         lOutputStream.close();
-                        System.out.println("Exported Documents: " + lReader.getPooledDocumentsRead() + ", Effectively exported Documents: " + lReader.getDocumentsRead()+", Docs skipped by Log: "+lReader.getDocumentsSkippedByLog());
+                        System.out.println("Exported Documents: " + lReader.getPooledDocumentsRead() + ", Effectively exported Documents: " + lReader.getDocumentsRead());
                         lDocCounter++;
                     }
                 }

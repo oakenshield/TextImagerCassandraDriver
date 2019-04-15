@@ -84,6 +84,7 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
         lBuilder.getConfiguration().getSocketOptions().setReadTimeoutMillis(30000); // Default 12000
         cluster = lBuilder.build();
         session = cluster.connect();
+        session.execute("use "+keyspace);
     }
 
     @Override

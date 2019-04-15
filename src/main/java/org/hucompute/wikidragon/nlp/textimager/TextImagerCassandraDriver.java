@@ -1,5 +1,6 @@
 package org.hucompute.wikidragon.nlp.textimager;
 
+import com.datastax.driver.core.ConsistencyLevel;
 import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
@@ -9,6 +10,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 
 public class TextImagerCassandraDriver {
+
+    protected static ConsistencyLevel secureConsistencyLevel = ConsistencyLevel.ALL;
+    protected static ConsistencyLevel defaultWriteConsistencyLevel = ConsistencyLevel.ANY;
+    protected static ConsistencyLevel defaultReadConsistencyLevel = ConsistencyLevel.ONE;
 
     public enum ProcessingState {PROCESSED, UNPROCESSED, ANY};
 

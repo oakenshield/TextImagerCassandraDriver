@@ -86,6 +86,37 @@ public class FastDocument {
         return lResult;
     }
 
+    public List<FastAnnotation> getAnnotations(String pTypeUri, String pName, boolean pSorted) {
+        List<FastAnnotation> lResult = new ArrayList<>();
+        for (FastAnnotation lAnnotation:annotations) {
+            if (lAnnotation.getTypeUri().equals(pTypeUri) && lAnnotation.getName().equals(pName)) lResult.add(lAnnotation);
+        }
+        if (pSorted) Collections.sort(lResult);
+        return lResult;
+    }
+
+    public List<FastAnnotation> getSubsumedAnnotations(FastAnnotation pParent, boolean pSorted) {
+        List<FastAnnotation> lResult = new ArrayList<>();
+        for (FastAnnotation lAnnotation:annotations) {
+            if ((lAnnotation.getBegin() >= pParent.getBegin()) && (lAnnotation.getEnd() <= pParent.getEnd())) {
+                lResult.add(lAnnotation);
+            }
+        }
+        if (pSorted) Collections.sort(lResult);
+        return lResult;
+    }
+
+    public List<FastAnnotation> getSubsumedAnnotations(int pBegin, int pEnd, boolean pSorted) {
+        List<FastAnnotation> lResult = new ArrayList<>();
+        for (FastAnnotation lAnnotation:annotations) {
+            if ((lAnnotation.getBegin() >= pBegin) && (lAnnotation.getEnd() <= pEnd)) {
+                lResult.add(lAnnotation);
+            }
+        }
+        if (pSorted) Collections.sort(lResult);
+        return lResult;
+    }
+
     public String getLanguage() {
         return language;
     }
@@ -161,7 +192,7 @@ public class FastDocument {
             lXMLStreamWriter.writeAttribute("sofaNum", "1");
             lXMLStreamWriter.writeAttribute("sofaID", "_InitialView");
             lXMLStreamWriter.writeAttribute("mimeType", "text");
-            lXMLStreamWriter.writeAttribute("sofaString", text.replace((char)0, ' '));
+            lXMLStreamWriter.writeAttribute("sofaString", replaceInvalidControlCharactersXML10WithWS(text));
 
             lXMLStreamWriter.writeEndElement();
             // Write View
@@ -172,88 +203,6 @@ public class FastDocument {
             // Close Root Element
             lXMLStreamWriter.writeEndElement();
             lXMLStreamWriter.writeEndDocument();
-            lXMLStreamWriter.flush();
-            return lStringWriter.toString();
-        }
-        catch (XMLStreamException e) {
-            throw new IOException(e);
-        }
-    }
-
-    public String exportHtml() throws IOException {
-        // Collect Types
-        try {
-            StringWriter lStringWriter = new StringWriter();
-            XMLOutputFactory lXMLOutputFactory = XMLOutputFactory.newInstance();
-            XMLStreamWriter lXMLStreamWriter = lXMLOutputFactory.createXMLStreamWriter(lStringWriter);
-            // Root Element
-            lXMLStreamWriter.writeStartElement("html");
-            lXMLStreamWriter.writeStartElement("head");
-            lXMLStreamWriter.writeStartElement("meta");
-            lXMLStreamWriter.writeAttribute("http-equiv", "Content-Type");
-            lXMLStreamWriter.writeAttribute("content", "text/html;charset=UTF-8");
-            lXMLStreamWriter.writeEndElement();
-            lXMLStreamWriter.writeEndElement();
-            lXMLStreamWriter.writeStartElement("body");
-
-            // Write Annotations
-            List<FastAnnotation> lAnnotations = new ArrayList<>();
-            for (FastAnnotation lAnnotation:annotations) {
-                if (lAnnotation.getTypeUri().equals(NS_WIKIDRAGON_URI) && lAnnotation.getName().equals("HtmlTag")) {
-                    lAnnotations.add(lAnnotation);
-                }
-            }
-            lAnnotations.sort(new Comparator<FastAnnotation>() {
-                @Override
-                public int compare(FastAnnotation o1, FastAnnotation o2) {
-                    return Integer.compare(Integer.parseInt(o1.getAttributeValue("order", null)), Integer.parseInt(o2.getAttributeValue("order", null)));
-                }
-            });
-            try {
-                int lTextIndex = 0;
-                List<FastAnnotation> lStack = new ArrayList<>();
-                List<Integer> lDepthStack = new ArrayList<>();
-                for (int i = 0; i < lAnnotations.size(); i++) {
-                    FastAnnotation lAnnotation = lAnnotations.get(i);
-                    int lCurrentDepth = Integer.parseInt(lAnnotation.getAttributeValue("depth", null));
-                    while ((lDepthStack.size() > 0) && (lDepthStack.get(lDepthStack.size()-1) >= lCurrentDepth)) {
-                        lXMLStreamWriter.writeCharacters(getSubString(lTextIndex, lStack.get(lStack.size() - 1).getEnd()));
-                        lTextIndex = lStack.get(lStack.size()-1).getEnd();
-                        lStack.remove(lStack.size()-1);
-                        lDepthStack.remove(lDepthStack.size()-1);
-                        lXMLStreamWriter.writeEndElement();
-                    }
-                    if (lTextIndex < lAnnotation.getBegin()) {
-                        lXMLStreamWriter.writeCharacters(getSubString(lTextIndex, lAnnotation.getBegin()));
-                        lTextIndex = lAnnotation.getBegin();
-                    }
-                    lStack.add(lAnnotation);
-                    lDepthStack.add(lCurrentDepth);
-                    lXMLStreamWriter.writeStartElement(lAnnotation.getAttributeValue("tag", null));
-                    JSONObject lAttrObject = new JSONObject(lAnnotation.getAttributeValue("attr", "{}"));
-                    for (String lKey:lAttrObject.keySet()) {
-                        lXMLStreamWriter.writeAttribute(lKey, lAttrObject.getString(lKey));
-                    }
-                }
-                while ((lDepthStack.size() > 0) && (lDepthStack.get(lDepthStack.size()-1) >= 0)) {
-                    lXMLStreamWriter.writeCharacters(getSubString(lTextIndex, lStack.get(lStack.size()-1).getEnd()));
-                    lTextIndex = lStack.get(lStack.size()-1).getEnd();
-                    lStack.remove(lStack.size()-1);
-                    lDepthStack.remove(lDepthStack.size()-1);
-                    lXMLStreamWriter.writeEndElement();
-                }
-                if (lTextIndex < text.length()) {
-                    lXMLStreamWriter.writeCharacters(getSubString(lTextIndex, text.length()));
-                }
-            }
-            catch (Exception e) {
-                lXMLStreamWriter.flush();
-                lStringWriter.flush();
-                System.err.println(lStringWriter.toString());
-                throw new IOException(e);
-            }
-            lXMLStreamWriter.writeEndElement();
-            lXMLStreamWriter.writeEndElement();
             lXMLStreamWriter.flush();
             return lStringWriter.toString();
         }
@@ -351,6 +300,32 @@ public class FastDocument {
         catch (SAXException e) {
             throw new IOException(e);
         }
+    }
+
+    public static String replaceInvalidControlCharactersXML10WithWS(String pString) {
+        StringBuilder lResult = new StringBuilder();
+        PrimitiveIterator.OfInt i = pString.codePoints().iterator();
+        while (i.hasNext()) {
+            int lCodePoint = i.nextInt();
+            if (lCodePoint<32) {
+                switch (lCodePoint) {
+                    case 9:
+                    case 10:
+                    case 13: {
+                        lResult.appendCodePoint(lCodePoint);
+                        break;
+                    }
+                    default: {
+                        lResult.appendCodePoint(' ');
+                        break;
+                    }
+                }
+            }
+            else {
+                lResult.appendCodePoint(lCodePoint);
+            }
+        }
+        return lResult.toString();
     }
 
 }

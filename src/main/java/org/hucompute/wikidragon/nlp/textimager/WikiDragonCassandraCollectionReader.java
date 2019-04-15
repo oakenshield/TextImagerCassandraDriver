@@ -27,12 +27,7 @@ import java.util.*;
 
 public class WikiDragonCassandraCollectionReader extends CasCollectionReader_ImplBase implements AutoCloseable, Progress {
 
-    protected ConsistencyLevel secureConsistencyLevel = ConsistencyLevel.ALL;
-    protected ConsistencyLevel defaultWriteConsistencyLevel = ConsistencyLevel.ANY;
-    protected ConsistencyLevel defaultReadConsistencyLevel = ConsistencyLevel.ONE;
-	
     private static Logger logger = LogManager.getLogger(WikiDragonCassandraCollectionReader.class);
-
 
     public static final String PARAM_KEYSPACE = "keyspace";
     @ConfigurationParameter(name=PARAM_KEYSPACE, mandatory=true)
@@ -71,19 +66,11 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     @ConfigurationParameter(name=PARAM_POOLDOCUMENTSMAXBYTES, mandatory=true)
     private int poolDocumentsMaxBytes;
 
-    public static final String PARAM_LOG_FILE_PATH = "logFilePath";
-    @ConfigurationParameter(name=PARAM_LOG_FILE_PATH, mandatory=true)
-    private String logFilePath;
-    
-    private File logFile;
     private ResultSet resultSet;
     private String[] next = null;
     private int pooledDocumentsRead = 0;
     private int pooledDocumentsRelevant = 0;
     private int documentsRead = 0;
-    private int documentsSkippedByLog = 0;
-    private DB logDb;
-    private Set<String> logSet;
     private String language;
     private Cluster cluster;
     private Session session;
@@ -92,7 +79,6 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     public void initialize(UimaContext aContext) throws ResourceInitializationException {
     	// TODO Auto-generated method stub
     	super.initialize(aContext);
-    	logFile = new File(logFilePath);
         try {
 			init();
 		} catch (CollectionException | IOException e) {
@@ -102,16 +88,12 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     }
     
     private void init() throws CollectionException, IOException{
-    	if (logFile != null) {
-            logDb = DBMaker.fileDB(logFile).closeOnJvmShutdown().transactionEnable().make();
-            logSet = logDb.hashSet("keys", Serializer.STRING).createOrOpen();
-        }
         Cluster.Builder lBuilder = Cluster.builder();
         for (String lHost:contactHosts) {
             lBuilder.addContactPoint(lHost);
         }
         lBuilder.withCredentials(user, password);
-        lBuilder.getConfiguration().getQueryOptions().setConsistencyLevel(defaultWriteConsistencyLevel);
+        lBuilder.getConfiguration().getQueryOptions().setConsistencyLevel(TextImagerCassandraDriver.defaultWriteConsistencyLevel);
         lBuilder.getConfiguration().getSocketOptions().setConnectTimeoutMillis(30000); // Default: 5000
         lBuilder.getConfiguration().getSocketOptions().setReadTimeoutMillis(30000); // Default 12000
         cluster = lBuilder.build();
@@ -124,7 +106,7 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     public WikiDragonCassandraCollectionReader(){
     }
     
-    public WikiDragonCassandraCollectionReader(String pKeyspace, String pUser, String pPassword, String[] pContactHosts, String pDBName, TextImagerCassandraDriver.ProcessingState pProcessingState, boolean pSkipZeroLength, boolean pPoolDocuments, int pPoolDocumentsMaxBytes, File pLogFile) throws IOException, CollectionException {
+    public WikiDragonCassandraCollectionReader(String pKeyspace, String pUser, String pPassword, String[] pContactHosts, String pDBName, TextImagerCassandraDriver.ProcessingState pProcessingState, boolean pSkipZeroLength, boolean pPoolDocuments, int pPoolDocumentsMaxBytes) throws IOException, CollectionException {
         keyspace = pKeyspace;
         user = pUser;
         password = pPassword;
@@ -134,7 +116,6 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
         skipZeroLength = pSkipZeroLength;
         poolDocuments = pPoolDocuments;
         poolDocumentsMaxBytes = pPoolDocumentsMaxBytes;
-        logFile = pLogFile;
         init();
     }
 
@@ -149,14 +130,13 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
             lResult++;
             if (System.currentTimeMillis() - lLastTime >= 1000) {
                 lLastTime = System.currentTimeMillis();
-                logger.info("Atomic Docs Read: "+documentsRead+", Atomic Docs Skipped by Log: "+documentsSkippedByLog+", RelevantPooledDocs: "+lResult);
+                logger.info("Atomic Docs Read: "+documentsRead+", RelevantPooledDocs: "+lResult);
             }
         }
-        logger.info("Atomic Docs Read: "+documentsRead+", Atomic Docs Skipped by Log: "+documentsSkippedByLog+", RelevantPooledDocs: "+pooledDocumentsRead);
+        logger.info("Atomic Docs Read: "+documentsRead+", RelevantPooledDocs: "+pooledDocumentsRead);
         pooledDocumentsRead = 0;
         pooledDocumentsRelevant = 0;
         documentsRead = 0;
-        documentsSkippedByLog = 0;
         return lResult;
     }
 
@@ -170,31 +150,15 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
                 if ((lTextLengthBytes > 0) || !skipZeroLength) {
                     switch (processingState) {
                         case UNPROCESSED: {
-                            if ((logSet == null) || !logSet.contains(lRaw)) {
-                                if (!lProcessed) return true;
-                            }
-                            else {
-                                documentsSkippedByLog++;
-                            }
+                            if (!lProcessed) return true;
                             break;
                         }
                         case PROCESSED: {
-                            if ((logSet == null) || !logSet.contains(lRaw)) {
-                                if (lProcessed) return true;
-                            }
-                            else {
-                                documentsSkippedByLog++;
-                            }
+                            if (lProcessed) return true;
                             break;
                         }
                         case ANY: {
-                            if ((logSet == null) || !logSet.contains(lRaw)) {
-                                return true;
-                            }
-                            else {
-                                documentsSkippedByLog++;
-                            }
-                            break;
+                            return true;
                         }
                     }
                 }
@@ -242,18 +206,9 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
         return documentsRead;
     }
 
-    /**
-     * Number of atomic documents which may fit the requirements but have been skipped because they are already in the log
-     * @return
-     */
-    public int getDocumentsSkippedByLog() {
-        return documentsSkippedByLog;
-    }
-
     @Override
     public void close() throws IOException {
         super.close();
-        if (logDb != null) logDb.close();
         if (session != null) session.close();
         if (cluster != null) cluster.close();
     }
@@ -304,12 +259,6 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
         			}
                 } catch (SAXException e) {
                     throw new IOException("Invalid XMI: " + e.getMessage(), e);
-                }
-                if (logSet != null) {
-                    for (String lKey : lDeliveredKeys) {
-                        logSet.add(lKey);
-                    }
-                    logDb.commit();
                 }
             }
         }

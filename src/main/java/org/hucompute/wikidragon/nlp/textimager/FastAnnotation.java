@@ -1,5 +1,7 @@
 package org.hucompute.wikidragon.nlp.textimager;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.TreeMap;
 
 public class FastAnnotation implements Comparable<FastAnnotation> {
@@ -70,7 +72,7 @@ public class FastAnnotation implements Comparable<FastAnnotation> {
     }
 
     @Override
-    public int compareTo(FastAnnotation o) {
+    public int compareTo(@NotNull FastAnnotation o) {
         int lResult = Integer.compare(begin, o.begin);
         if (lResult == 0) {
             lResult = Integer.compare(end, o.end);

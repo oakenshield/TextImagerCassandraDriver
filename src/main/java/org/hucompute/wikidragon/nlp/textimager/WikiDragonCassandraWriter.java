@@ -62,6 +62,9 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
     private Cluster cluster;
     private Session session;
 
+    public WikiDragonCassandraWriter() {
+    }
+
     public WikiDragonCassandraWriter(String pKeyspace, String pUser, String pPassword, String[] pContactHosts, String pDBName) throws IOException, CollectionException {
         keyspace = pKeyspace;
         user = pUser;

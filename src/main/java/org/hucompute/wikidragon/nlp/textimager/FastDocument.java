@@ -21,6 +21,8 @@ public class FastDocument {
 
     public static final String NS_SEGMENTATION_URI = "http:///de/tudarmstadt/ukp/dkpro/core/api/segmentation/type.ecore";
     public static final String NS_WIKIDRAGON_URI = "http:///org/hucompute/wikidragon/core/nlp/annotation.ecore";
+    public static final String NS_POS_URI = "http:///de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.ecore";
+    public static final String NS_POS_PREFIX = "pos";
     private static final String NS_CAS_URI = "http:///uima/cas.ecore";
     private static final String NS_XMI_URI = "http://www.omg.org/XMI";
     private static final String NS_TCAS_URI = "http:///uima/tcas.ecore";
@@ -211,6 +213,39 @@ public class FastDocument {
         }
     }
 
+    public static String[] rewritePrefixUri(String pPrefix, String pLocal, String pQName) throws SAXException {
+        switch (pPrefix) {
+            case "uima.cas": {
+                return new String[]{NS_CAS_PREFIX, NS_CAS_URI};
+            }
+            case "org.hucompute.wikidragon.core.nlp.annotation": {
+                return new String[]{NS_WIKIDRAGON_PREFIX, NS_WIKIDRAGON_URI};
+            }
+            case "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type": {
+                return new String[]{NS_SEGMENTATION_PREFIX, NS_SEGMENTATION_URI};
+            }
+            case "de.tudarmstadt.ukp.dkpro.core.api.metadata.type": {
+                return new String[]{NS_TCAS_PREFIX, NS_TCAS_URI};
+            }
+            case "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos": {
+                return new String[]{NS_POS_PREFIX, NS_POS_URI};
+            }
+            default: {
+                switch (pLocal) {
+                    case "CAS": {
+                        return new String[]{NS_XMI_PREFIX, NS_XMI_URI};
+                    }
+                    case "i": {
+                        return new String[]{NS_XMI_PREFIX, NS_XMI_URI};
+                    }
+                    default: {
+                        throw new SAXException("Unknown Prefix: "+pPrefix);
+                    }
+                }
+            }
+        }
+    }
+
     public static FastDocument fromXMI(String pXMI) throws IOException {
         try {
             SAXParserFactory lSAXParserFactory = SAXParserFactory.newInstance();
@@ -225,6 +260,8 @@ public class FastDocument {
                 @Override
                 public void startDocument() throws SAXException {
                     super.startDocument();
+                    lPrefixUriMap.put(NS_XMI_PREFIX, NS_XMI_URI);
+                    lUriPrefixMap.put(NS_XMI_URI, NS_XMI_PREFIX);
                 }
 
                 @Override
@@ -241,6 +278,17 @@ public class FastDocument {
 
                 @Override
                 public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+                    if (uri.equals("")) {
+                        // Uh oh....
+                        int lLastDotIndex = qName.lastIndexOf('.');
+                        String lPrefix = lLastDotIndex >= 0 ? qName.substring(0, lLastDotIndex) : "";
+                        localName = lLastDotIndex >= 0 ? qName.substring(lLastDotIndex+1) : qName;
+                        String[] lPrefixUri = rewritePrefixUri(lPrefix, localName, qName);
+                        uri = lPrefixUri[1];
+                        lPrefixUriMap.put(lPrefixUri[0], lPrefixUri[1]);
+                        lUriPrefixMap.put(lPrefixUri[1], lPrefixUri[0]);
+                        qName = lPrefixUri[0]+":"+localName;
+                    }
                     switch (uri) {
                         case NS_TCAS_URI: {
                             if (localName.equals("DocumentAnnotation")) {
@@ -257,7 +305,23 @@ public class FastDocument {
                         default: {
                             Map<String, String> lAttributeMap = new HashMap<>();
                             for (int i=0; i<attributes.getLength(); i++) {
-                                lAttributeMap.put(attributes.getQName(i), attributes.getValue(i));
+                                String lKey = attributes.getQName(i);
+                                String lValue = attributes.getValue(i);
+                                switch (lKey) {
+                                    case "_id": {
+                                        lKey = "xml:id";
+                                        break;
+                                    }
+                                    case "_indexed": {
+                                        lKey = null;
+                                        break;
+                                    }
+                                    case "_ref_sofa": {
+                                        lKey = "sofa";
+                                        break;
+                                    }
+                                }
+                                if (lKey != null) lAttributeMap.put(lKey, lValue);
                             }
                             String lSofa = lAttributeMap.get("sofa");
                             String lBegin = lAttributeMap.get("begin");

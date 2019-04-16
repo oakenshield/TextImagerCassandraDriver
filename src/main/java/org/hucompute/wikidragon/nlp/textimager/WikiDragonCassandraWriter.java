@@ -62,6 +62,7 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
     private Cluster cluster;
     private Session session;
     private PreparedStatement preparedStatement;
+    private long written = 0;
 
     public WikiDragonCassandraWriter() {
     }
@@ -86,7 +87,8 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
         cluster = lBuilder.build();
         session = cluster.connect();
         session.execute("use "+keyspace);
-        preparedStatement = session.prepare("UPDATE wikitextspannlp SET xmi=?, xmilen=?, processed=true WHERE dbname=? AND raw=?");
+        preparedStatement = session.prepare("UPDATE wikitextspannlp SET xmi=?, xmilen=?, processed=True WHERE dbname=? AND raw=?");
+        written = 0;
     }
 
     @Override
@@ -100,6 +102,28 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
         }
         catch (IOException e) {
             throw new ResourceInitializationException(e);
+        }
+    }
+
+    @Override
+    public void batchProcessComplete() throws AnalysisEngineProcessException {
+        super.batchProcessComplete();
+        try {
+            close();
+        }
+        catch (IOException e) {
+            throw new AnalysisEngineProcessException(e);
+        }
+    }
+
+    @Override
+    public void collectionProcessComplete() throws AnalysisEngineProcessException {
+        super.collectionProcessComplete();
+        try {
+            close();
+        }
+        catch (IOException e) {
+            throw new AnalysisEngineProcessException(e);
         }
     }
 
@@ -120,6 +144,7 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
                         throw new AnalysisEngineProcessException(new IOException("Update could not be applied"));
                     }
                 }
+                logger.info("Written Documents: "+(++written));
             }
         }
         catch (IOException e) {
@@ -127,6 +152,16 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
         }
         catch (SAXException e) {
             throw new AnalysisEngineProcessException(e);
+        }
+    }
+
+    @Override
+    public void destroy() {
+        try {
+            close();
+        }
+        catch (IOException e) {
+            logger.error(e.getMessage(), e);
         }
     }
 

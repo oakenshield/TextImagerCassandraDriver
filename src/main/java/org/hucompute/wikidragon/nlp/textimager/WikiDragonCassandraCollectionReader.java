@@ -8,11 +8,15 @@ import org.apache.logging.log4j.Logger;
 import org.apache.uima.UimaContext;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.CASException;
+import org.apache.uima.cas.TypeSystem;
 import org.apache.uima.cas.impl.XmiCasDeserializer;
 import org.apache.uima.collection.CollectionException;
 import org.apache.uima.fit.component.CasCollectionReader_ImplBase;
 import org.apache.uima.fit.descriptor.ConfigurationParameter;
+import org.apache.uima.fit.internal.ExtendedLogger;
+import org.apache.uima.resource.CasManager;
 import org.apache.uima.resource.ResourceInitializationException;
+import org.apache.uima.resource.ResourceSpecifier;
 import org.apache.uima.util.Progress;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -74,6 +78,7 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     private String language;
     private Cluster cluster;
     private Session session;
+    private boolean currentlyInComputePooledDocumentsRelevant = false;
     
     @Override
     public void initialize(UimaContext aContext) throws ResourceInitializationException {
@@ -120,6 +125,7 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     }
 
     private int computePooledDocumentsRelevant() throws IOException, CollectionException {
+        currentlyInComputePooledDocumentsRelevant = true;
         int lResult = 0;
         session.execute("use "+keyspace);
         resultSet = session.execute("select dbname,raw,textlen,xmilen,processed from wikitextspannlp");
@@ -137,6 +143,7 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
         pooledDocumentsRead = 0;
         pooledDocumentsRelevant = 0;
         documentsRead = 0;
+        currentlyInComputePooledDocumentsRelevant = false;
         return lResult;
     }
 
@@ -207,6 +214,16 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     }
 
     @Override
+    public void destroy() {
+        try {
+            close();
+        }
+        catch (IOException e) {
+            logger.error(e.getMessage(), e);
+        }
+    }
+
+    @Override
     public void close() throws IOException {
         super.close();
         if (session != null) session.close();
@@ -216,19 +233,15 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     @Override
     public void getNext(CAS cas) throws IOException, CollectionException {
         if (next != null) {
-        	
-            Set<String> lDeliveredKeys = new HashSet<>();
             byte[] lBytes = null;
             if (poolDocuments) {
                 List<FastDocument> lDocuments = new ArrayList<>();
                 int lBytesLength = Integer.parseInt(next[2]);
                 if (next[1] != null) lDocuments.add(FastDocument.fromXMI(next[1]));
-                lDeliveredKeys.add(next[0]);
                 prefetch();
                 pooledDocumentsRead++;
                 while ((lBytesLength <= poolDocumentsMaxBytes) && (next != null)) {
                     if (lBytesLength + Integer.parseInt(next[2]) <= poolDocumentsMaxBytes) {
-                        lDeliveredKeys.add(next[0]);
                         lBytesLength += Integer.parseInt(next[2]);
                         if (next[1] != null) lDocuments.add(FastDocument.fromXMI(next[1]));
                         prefetch();
@@ -241,13 +254,12 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
             }
             else {
                 lBytes = next[1] != null ? next[1].getBytes(Charset.forName("UTF-8")) : null;
-                lDeliveredKeys.add(next[0]);
                 prefetch();
                 pooledDocumentsRead++;
             }
             if (cas != null) {
                 try {
-                    XmiCasDeserializer.deserialize(new ByteArrayInputStream(lBytes), cas, true);
+                    XmiCasDeserializer.deserialize(new ByteArrayInputStream(lBytes), cas, false);
                     DocumentMetaData docMetaData;
         			try {
         				docMetaData = DocumentMetaData.create(cas);
@@ -262,11 +274,20 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
                 }
             }
         }
+        else {
+            if (!currentlyInComputePooledDocumentsRelevant) close();
+        }
     }
 
     @Override
     public boolean hasNext() throws IOException, CollectionException {
-        return next != null;
+        if (next != null) {
+            return true;
+        }
+        else {
+            if (!currentlyInComputePooledDocumentsRelevant) close();
+            return false;
+        }
     }
 
     @Override

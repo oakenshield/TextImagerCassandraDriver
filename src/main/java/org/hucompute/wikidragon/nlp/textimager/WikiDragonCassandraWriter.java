@@ -167,8 +167,18 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
 
     @Override
     public void close() throws IOException {
-        if (session != null) session.close();
-        if (cluster != null) cluster.close();
+        if (session != null) {
+            logger.info("Closing Cassandra Session of WikiDragonCassandraWriter...");
+            session.close();
+            session = null;
+            logger.info("Closing Cassandra Session of WikiDragonCassandraWriter... Done");
+        }
+        if (cluster != null) {
+            logger.info("Closing Cassandra Cluster of WikiDragonCassandraWriter...");
+            cluster.close();
+            cluster = null;
+            logger.info("Closing Cassandra Cluster of WikiDragonCassandraWriter... Done");
+        }
     }
 
     public static List<FastDocument> split(FastDocument pFastDocument) throws AnalysisEngineProcessException {

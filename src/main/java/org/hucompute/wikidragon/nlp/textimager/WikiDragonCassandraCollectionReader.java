@@ -226,8 +226,18 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
     @Override
     public void close() throws IOException {
         super.close();
-        if (session != null) session.close();
-        if (cluster != null) cluster.close();
+        if (session != null) {
+            logger.info("Closing Cassandra Session of WikiDragonCassandraCollectionReader...");
+            session.close();
+            session = null;
+            logger.info("Closing Cassandra Session of WikiDragonCassandraCollectionReader... Done");
+        }
+        if (cluster != null) {
+            logger.info("Closing Cassandra Cluster of WikiDragonCassandraCollectionReader...");
+            cluster.close();
+            cluster = null;
+            logger.info("Closing Cassandra Cluster of WikiDragonCassandraCollectionReader... Done");
+        }
     }
 
     @Override

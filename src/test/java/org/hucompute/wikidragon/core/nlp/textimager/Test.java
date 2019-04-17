@@ -20,7 +20,7 @@ public class Test {
                 WikiDragonCassandraCollectionReader.class,
                 WikiDragonCassandraCollectionReader.PARAM_KEYSPACE,"simplewikitest",
                 WikiDragonCassandraCollectionReader.PARAM_USER,"cassandra",
-                WikiDragonCassandraCollectionReader.PARAM_PASSWORD,"wkZjeCNH",
+                WikiDragonCassandraCollectionReader.PARAM_PASSWORD,"",
                 WikiDragonCassandraCollectionReader.PARAM_CONTACTHOSTS,new String[]{"141.2.108.194"},
                 WikiDragonCassandraCollectionReader.PARAM_DBNAME,"simplewiki",
                 WikiDragonCassandraCollectionReader.PARAM_PROCESSINGSTATE, TextImagerCassandraDriver.ProcessingState.UNPROCESSED,
@@ -32,7 +32,7 @@ public class Test {
         AnalysisEngineDescription writer = createEngineDescription(WikiDragonCassandraWriter.class,
                 WikiDragonCassandraWriter.PARAM_KEYSPACE,"simplewikitest",
                 WikiDragonCassandraWriter.PARAM_USER,"cassandra",
-                WikiDragonCassandraWriter.PARAM_PASSWORD,"wkZjeCNH",
+                WikiDragonCassandraWriter.PARAM_PASSWORD,"",
                 WikiDragonCassandraWriter.PARAM_CONTACTHOSTS,new String[]{"141.2.108.194"},
                 WikiDragonCassandraWriter.PARAM_DBNAME,"simplewiki"
         );

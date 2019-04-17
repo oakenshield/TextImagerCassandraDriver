@@ -1,31 +1,25 @@
-package org.hucompute.wikidragon.nlp.textimager;
+package org.hucompute.wikidragon.core.nlp.textimager;
 
 import com.datastax.driver.core.*;
 import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 
+import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.uima.UimaContext;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.CASException;
-import org.apache.uima.cas.TypeSystem;
 import org.apache.uima.cas.impl.XmiCasDeserializer;
+import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.collection.CollectionException;
 import org.apache.uima.fit.component.CasCollectionReader_ImplBase;
 import org.apache.uima.fit.descriptor.ConfigurationParameter;
-import org.apache.uima.fit.internal.ExtendedLogger;
-import org.apache.uima.resource.CasManager;
+import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.resource.ResourceInitializationException;
-import org.apache.uima.resource.ResourceSpecifier;
 import org.apache.uima.util.Progress;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
 import org.xml.sax.SAXException;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
 
@@ -270,16 +264,30 @@ public class WikiDragonCassandraCollectionReader extends CasCollectionReader_Imp
             if (cas != null) {
                 try {
                     XmiCasDeserializer.deserialize(new ByteArrayInputStream(lBytes), cas, false);
-                    DocumentMetaData docMetaData;
-        			try {
-        				docMetaData = DocumentMetaData.create(cas);
-        	            docMetaData.setDocumentTitle(""+pooledDocumentsRead);
-        	            docMetaData.setDocumentId(""+pooledDocumentsRead);
-        			} catch (CASException | IllegalStateException e1) {
-        				// TODO Auto-generated catch block
-        				e1.printStackTrace();
-        			}
-                } catch (SAXException e) {
+                    Collection<DocumentMetaData> lDocumentMetaDataCollection = JCasUtil.select(cas.getJCas(), DocumentMetaData.class);
+                    // Patch DocumentMetaData.DocumentTitle and DocumentMetaData.DocumentId if they are missing
+                    if (lDocumentMetaDataCollection.size() > 1) {
+                        throw new CollectionException(new IOException("Count of DocumentMetaData is > 1 : "+lDocumentMetaDataCollection.size()));
+                    }
+                    else if (lDocumentMetaDataCollection.size() == 1) {
+                        DocumentMetaData lDocumentMetaData = lDocumentMetaDataCollection.iterator().next();
+                        if ((lDocumentMetaData.getDocumentTitle() == null) || (lDocumentMetaData.getDocumentTitle().length() == 0)) {
+                            lDocumentMetaData.setDocumentTitle(pooledDocumentsRead + ".xmi");
+                        }
+                        if ((lDocumentMetaData.getDocumentId() == null) || (lDocumentMetaData.getDocumentId().length() == 0)) {
+                            lDocumentMetaData.setDocumentId(pooledDocumentsRead + ".xmi");
+                        }
+                    }
+                    else {
+                        DocumentMetaData lDocumentMetaData = new DocumentMetaData(cas.getJCas(), 0, cas.getDocumentText().length());
+                        lDocumentMetaData.setDocumentTitle(pooledDocumentsRead + ".xmi");
+                        lDocumentMetaData.setDocumentId(pooledDocumentsRead + ".xmi");
+                    }
+                }
+                catch (CASException e) {
+                    throw new IOException("Invalid XMI: " + e.getMessage(), e);
+                }
+                catch (SAXException e) {
                     throw new IOException("Invalid XMI: " + e.getMessage(), e);
                 }
             }

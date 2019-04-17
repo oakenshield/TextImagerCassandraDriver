@@ -1,4 +1,4 @@
-package org.hucompute.wikidragon.nlp.textimager;
+package org.hucompute.wikidragon.core.nlp.textimager;
 
 import de.tudarmstadt.ukp.dkpro.core.stanfordnlp.StanfordPosTagger;
 import org.apache.logging.log4j.LogManager;
@@ -38,7 +38,7 @@ public class Test {
         );
 
         AggregateBuilder builder = new AggregateBuilder();
-        builder.add(createEngineDescription(StanfordPosTagger.class));
+        //builder.add(createEngineDescription(StanfordPosTagger.class));
         builder.add(writer);
         SimplePipeline.runPipeline(reader, builder.createAggregate());
         logger.info("All Done");

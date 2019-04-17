@@ -1,6 +1,5 @@
-package org.hucompute.wikidragon.nlp.textimager;
+package org.hucompute.wikidragon.core.nlp.textimager;
 
-import org.json.JSONObject;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -217,6 +216,9 @@ public class FastDocument {
         switch (pPrefix) {
             case "uima.cas": {
                 return new String[]{NS_CAS_PREFIX, NS_CAS_URI};
+            }
+            case "uima.tcas": {
+                return new String[]{NS_TCAS_PREFIX, NS_TCAS_URI};
             }
             case "org.hucompute.wikidragon.core.nlp.annotation": {
                 return new String[]{NS_WIKIDRAGON_PREFIX, NS_WIKIDRAGON_URI};

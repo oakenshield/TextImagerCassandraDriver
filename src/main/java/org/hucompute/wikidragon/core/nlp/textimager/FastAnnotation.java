@@ -1,4 +1,4 @@
-package org.hucompute.wikidragon.nlp.textimager;
+package org.hucompute.wikidragon.core.nlp.textimager;
 
 import org.jetbrains.annotations.NotNull;
 

@@ -1,10 +1,9 @@
-package org.hucompute.wikidragon.nlp.textimager;
+package org.hucompute.wikidragon.core.nlp.textimager;
 
 import com.datastax.driver.core.ConsistencyLevel;
 import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
-import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -121,15 +120,6 @@ public class TextImagerCassandraDriver {
                         lOutputStream.close();
                         System.out.println("Exported Documents: " + lReader.getPooledDocumentsRead() + ", Effectively exported Documents: " + lReader.getDocumentsRead());
                         lDocCounter++;
-                    }
-                }
-                break;
-            }
-            case "countdocs": {
-                try (WikiDragonCassandraDocumentKeyIterator lReader = new WikiDragonCassandraDocumentKeyIterator(lKeyspace, lUser, lPassword, new String[]{lHost}, lDBName, lProcessingState, lSkipZero)) {
-                    while (lReader.hasNext()) {
-                        lReader.next();
-                        System.out.println("Fetched Documents: " + lReader.getDocumentsRead());
                     }
                 }
                 break;

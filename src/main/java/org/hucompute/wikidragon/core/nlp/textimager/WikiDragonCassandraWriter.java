@@ -1,37 +1,22 @@
-package org.hucompute.wikidragon.nlp.textimager;
+package org.hucompute.wikidragon.core.nlp.textimager;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.StringWriter;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.datastax.driver.core.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.uima.UimaContext;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
-import org.apache.uima.cas.FSIterator;
 import org.apache.uima.cas.impl.XCASSerializer;
-import org.apache.uima.cas.impl.XmiCasDeserializer;
+import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.collection.CollectionException;
 import org.apache.uima.fit.component.JCasConsumer_ImplBase;
 import org.apache.uima.fit.descriptor.ConfigurationParameter;
 import org.apache.uima.jcas.JCas;
-import org.apache.uima.jcas.tcas.Annotation;
 import org.apache.uima.resource.ResourceInitializationException;
 
-import com.datastax.driver.core.exceptions.SyntaxError;
-
-import de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS;
-import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
-import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.TagsetDescription;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
 import org.apache.uima.util.XMLSerializer;
 import org.xml.sax.SAXException;
 
@@ -129,12 +114,16 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
 
     @Override
     public void process(JCas jCas) throws AnalysisEngineProcessException {
-        XCASSerializer lXCASSerializer = new XCASSerializer(jCas.getTypeSystem());
-        StringWriter lWriter = new StringWriter();
-        XMLSerializer lXMLSerializer = new XMLSerializer(lWriter, false);
+        ByteArrayOutputStream lOutput = new ByteArrayOutputStream();
         try {
-            lXCASSerializer.serialize(jCas.getCas(), lXMLSerializer.getContentHandler());
-            for (FastDocument lDocument : split(FastDocument.fromXMI(lWriter.toString()))) {
+            XmiCasSerializer.serialize(jCas.getCas(), lOutput);
+        }
+        catch(SAXException e) {
+            throw new AnalysisEngineProcessException(e);
+        }
+        String lRawXMI = new String(lOutput.toByteArray());
+        try {
+            for (FastDocument lDocument : split(FastDocument.fromXMI(lRawXMI))) {
                 List<FastAnnotation> lAnnotations = lDocument.getAnnotations(FastDocument.NS_WIKIDRAGON_URI, "WikiTextSpan", false);
                 if (lAnnotations.size() == 1) {
                     String lXMI = lDocument.exportXMI();
@@ -148,9 +137,6 @@ public class WikiDragonCassandraWriter extends JCasConsumer_ImplBase implements 
             }
         }
         catch (IOException e) {
-            throw new AnalysisEngineProcessException(e);
-        }
-        catch (SAXException e) {
             throw new AnalysisEngineProcessException(e);
         }
     }

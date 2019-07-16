@@ -19,6 +19,9 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
 
+/**
+ * WikiDragonCassandraCollectionReader
+ */
 public class WikiDragonCassandraCollectionReader extends CasCollectionReader_ImplBase implements Progress {
 
     private static Logger logger = LogManager.getLogger(WikiDragonCassandraCollectionReader.class);

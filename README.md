@@ -2,6 +2,7 @@
 [![](https://jitpack.io/v/texttechnologylab/TextImagerCassandraDriver.svg)](https://jitpack.io/#texttechnologylab/TextImagerCassandraDriver)
 
 # TextImager Cassandra Driver
+This project allows the TextImager to write to a Cassandra database and to read UIMA documents from it.
 
 # Cite
 If you use the project, please cite it in the following way:
@@ -29,5 +30,4 @@ W. Hemati, T. Uslu, and A. Mehler, “TextImager: a Distributed UIMA-based Syste
   pdf            = {https://www.texttechnologylab.org/wp-content/uploads/2018/03/TextImager2016.pdf},
   year           = 2016
 }
-
 ```
